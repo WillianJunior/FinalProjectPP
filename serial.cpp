@@ -70,7 +70,7 @@ int main (int argc, char** argv) {
 	}
 
 	// get delta
-	delta_t delta = stof(argv[2]);
+	delta_t delta = stof(argv[2]) == 0 ? 0.0001 : stof(argv[2]);
 
 	// get graph
 	ifstream adj_list_file;
