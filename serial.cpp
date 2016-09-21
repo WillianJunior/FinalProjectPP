@@ -92,7 +92,7 @@ int main (int argc, char** argv) {
 		// get weight value
 		size_t j = i+1;
 		line = line.substr(i+1);
-		e.weight = stof(line.substr(0,line.size()-1));
+		e.weight = stof(line.substr(0,line.size()));
 
 		E.emplace_back(e);
 	}
