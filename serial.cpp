@@ -34,7 +34,7 @@ public:
 
 // dynamic sized array in a struct
 typedef struct {
-	int last=-1;
+	int last;
 	edge_t edges[];
 } edge_s;
 
@@ -56,7 +56,19 @@ void printHL(map<vertex_t, list<edge_t>> hl) {
 		for (edge_t e : p.second) {
 			cout << "\t" << e.from << ":" << e.to << " = " << e.weight << endl;
 		}
-	}	
+	}
+}
+
+void printHL(edge_s* hl, int size, int max_edges) {
+	int sizeof_edge_s = sizeof(edge_s) + max_edges*sizeof(edge_t);
+	for (int i=0; i<size; i++) {
+		cout << "index = " << i << " sized " << (hl+sizeof_edge_s*i)->last << ":" << endl;
+		for (int j=0; j<(hl+sizeof_edge_s*i)->last; j++) {
+			cout << "\t" << (hl+sizeof_edge_s*i)->edges[j].from << ":" 
+				<< (hl+sizeof_edge_s*i)->edges[j].to << " = " 
+				<< (hl+sizeof_edge_s*i)->edges[j].weight << endl;
+		}
+	}
 }
 
 void printTent(map<vertex_t, weight_t> tent) {
@@ -154,17 +166,26 @@ int main (int argc, char** argv) {
 			max_edges = edges_count[i];
 
 	// convert heavy and light to arrays
-	edge_s* heavy = (edge_s*)malloc(n_vertices * (sizeof(edge_s) + max_edges));
+	cout << max_edges << endl;
+	int sizeof_edge_s = sizeof(edge_s) + (max_edges+1)*sizeof(edge_t);
+	edge_s* heavy = (edge_s*)malloc(n_vertices * sizeof_edge_s);
 	for (int i=0; i<n_vertices; i++) {
-		heavy[i].last = -1;
+		(heavy + i*sizeof_edge_s)->last = 0;
 	}
+
+	printHL(heavy, n_vertices, max_edges);
 
 	for (pair<vertex_t, list<edge_t>> p : heavy_m) {
 		for (edge_t e : p.second) {
-			heavy[p.first].last++;
-			heavy[p.first].edges[heavy[p.first].last] = e;
+			(heavy + p.first*sizeof_edge_s)->edges[
+				(heavy + p.first*sizeof_edge_s)->last] = e;
+			(heavy + p.first*sizeof_edge_s)->last++;
+			cout << "adding " << e.from << "/" << p.first << "-" << e.to << ":" << e.weight << endl;
 		}
+		printHL(heavy, n_vertices, max_edges);
 	}
+
+	printHL(heavy, n_vertices, max_edges);
 
 
 	while (B.size() != 0) {
