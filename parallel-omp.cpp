@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cfloat>
 #include <sys/time.h>
+#include <omp.h>
 
 using namespace std;
 
@@ -164,12 +165,40 @@ int main (int argc, char** argv) {
 
 			gettimeofday(&start2, NULL);
 
+			#ifdef LIGHT_PAR
+			#pragma omp parallel 
+			{
+			#pragma omp single 
+			{
+			#endif
+
 			for (vertex_t v : B[i]) {
+				#if defined(GRANULARITY_1) && defined(LIGHT_PAR)
+				#pragma omp task
+				{
+				#endif
 				for (edge_t e2 : light[v]) {
+					#if defined(GRANULARITY_0) && defined(LIGHT_PAR)
+					#pragma omp task
+					{
+					#endif
+
 					weight_t weight = tent[v] + e2.weight;
 					Req.emplace_back(pair<vertex_t, weight_t>(e2.to, weight));
+
+					#if defined(GRANULARITY_0) && defined(LIGHT_PAR)
+					}
+					#endif
 				}
+				#if defined(GRANULARITY_1) && defined(LIGHT_PAR)
+				}
+				#endif
 			}
+
+			#ifdef LIGHT_PAR
+			}
+			}
+			#endif
 
 			gettimeofday(&end2, NULL);
 			tempo2 = tempo2 + ((end2.tv_sec*1000000+end2.tv_usec) - (start2.tv_sec*1000000+start2.tv_usec));
@@ -196,12 +225,46 @@ int main (int argc, char** argv) {
 		list<pair<vertex_t, weight_t>> Req;
 		
 		gettimeofday(&start5, NULL);
+
+		#ifdef HEAVY_PAR
+		#pragma omp parallel 
+		{
+		#pragma omp single 
+		{
+		#endif
+
 		for (vertex_t v : S) {
+			
+			#if defined(GRANULARITY_1) && defined(HEAVY_PAR)
+			#pragma omp task
+			{
+			#endif
+
 			for (edge_t e2 : heavy[v]) {
+				
+				#if defined(GRANULARITY_0) && defined(HEAVY_PAR)
+				#pragma omp task
+				{
+				#endif
+
 				weight_t weight = tent[v] + e2.weight;
 				Req.emplace_back(pair<vertex_t, weight_t>(e2.to, weight));
+
+				#if defined(GRANULARITY_0) && defined(HEAVY_PAR)
+				}
+				#endif
 			}
+
+			#if defined(GRANULARITY_1) && defined(HEAVY_PAR)
+			}
+			#endif
 		}
+
+		#ifdef HEAVY_PAR
+		}
+		}
+		#endif
+
 
 		gettimeofday(&end5, NULL);
 		tempo5 = tempo5 + ((end5.tv_sec*1000000+end5.tv_usec) - (start5.tv_sec*1000000+start5.tv_usec));
