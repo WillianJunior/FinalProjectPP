@@ -59,7 +59,7 @@ void printHL(map<vertex_t, list<edge_t>> hl) {
 
 void printTent(map<vertex_t, weight_t> tent) {
 	for (pair<vertex_t, weight_t> p : tent) {
-		cout << "0:" << p.first << " = " << p.second << endl;
+		cout << "s:" << p.first << " = " << p.second << endl;
 	}
 	cout << endl << "Tempos" << endl;
 	cout << "Relax inicial: " << tempo1 << endl;
@@ -163,7 +163,6 @@ int main (int argc, char** argv) {
 			list<pair<vertex_t, weight_t>> Req;
 
 			gettimeofday(&start2, NULL);
-
 			for (vertex_t v : B[i]) {
 				for (edge_t e2 : light[v]) {
 					weight_t weight = tent[v] + e2.weight;
