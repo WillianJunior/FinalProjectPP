@@ -1,0 +1,18 @@
+
+Graph Generator Parameters
+
+**************************
+SCALE			: 20
+TotVertices		: 1048576
+MaxCliqueSize		: 101
+ProbUnidirectional	: 0.200000
+ProbIntercliqueEdges	: 0.500000
+MaxParallelEdges	: 3
+MaxWeight		: 1048576
+MinWeight		: 0
+WRITE_TO_FILE		: 1
+SORT_EDGELISTS		: 1
+SORT_TYPE	        : 0
+OUTFILE			: sample.gr
+LOGFILE			: log
+
