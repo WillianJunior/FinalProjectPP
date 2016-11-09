@@ -10,6 +10,8 @@
 #include <sys/time.h>
 #include <omp.h>
 
+#include <boost/lockfree/queue.hpp>
+
 using namespace std;
 
 typedef int vertex_t;
@@ -36,6 +38,11 @@ public:
 		return true;
 	}
 };
+
+typedef struct {
+	vertex_t v;
+	weight_t w;
+} p_t;
 
 void relax(const vertex_t &v, const weight_t &x, const delta_t& delta, 
 	map<vertex_t, weight_t> &tent, map<index_t, list<vertex_t>> &B);
@@ -131,6 +138,16 @@ int main (int argc, char** argv) {
 			light[e.from].emplace_back(e);
 	}
 
+	// get max heavy and light elements per list
+	int max_light_size = 0;
+	for (pair<vertex_t, list<edge_t>> p : light)
+		if (max_light_size < p.second.size())
+			max_light_size = p.second.size();
+	int max_heavy_size = 0;
+	for (pair<vertex_t, list<edge_t>> p : heavy)
+		if (max_heavy_size < p.second.size())
+			max_heavy_size = p.second.size();
+
 	// cout << "heavy:" << endl;
 	// printHL(heavy);
 	// cout << endl << "light:" << endl;
@@ -161,7 +178,7 @@ int main (int argc, char** argv) {
 		// cout << "while B[i] != {}" << endl;
 		while (B[i].size() != 0) {
 			// cout << "Req = {(w; tent(v) + c(v,w)) | v in B[i] and (v,w) in light(v)}" << endl;
-			list<pair<vertex_t, weight_t>> Req;
+			boost::lockfree::queue<p_t> Req(B[i].size()*(1+max_light_size));
 
 			gettimeofday(&start2, NULL);
 
@@ -184,7 +201,10 @@ int main (int argc, char** argv) {
 					#endif
 
 					weight_t weight = tent[v] + e2.weight;
-					Req.emplace_back(pair<vertex_t, weight_t>(e2.to, weight));
+					p_t tmp;
+					tmp.v = e2.to;
+					tmp.w = weight;
+					Req.push(tmp);
 
 					#if defined(GRANULARITY_0) && defined(LIGHT_PAR)
 					}
@@ -214,15 +234,17 @@ int main (int argc, char** argv) {
 			// cout << "for each (v,x) in Req do relax(v,x)" << endl;
 			
 			gettimeofday(&start4, NULL);
-			for (pair<vertex_t, weight_t> p : Req) {
-				relax(p.first, p.second, delta, tent, B);
+			while (!Req.empty()) {
+				p_t p;
+				Req.pop(p);
+				relax(p.v, p.w, delta, tent, B);
 			}
 			gettimeofday(&end4, NULL);
 			tempo4 = tempo4 + ((end4.tv_sec*1000000+end4.tv_usec) - (start4.tv_sec*1000000+start4.tv_usec));
 		}
 
 		// cout << "Req = {(w; tent(v) + c(v,w)) | v in S and (v,w) in heavy(v)}" << endl;
-		list<pair<vertex_t, weight_t>> Req;
+		boost::lockfree::queue<p_t> Req(B[i].size()*(1+max_heavy_size));
 		
 		gettimeofday(&start5, NULL);
 
@@ -248,7 +270,10 @@ int main (int argc, char** argv) {
 				#endif
 
 				weight_t weight = tent[v] + e2.weight;
-				Req.emplace_back(pair<vertex_t, weight_t>(e2.to, weight));
+				p_t tmp;
+				tmp.v = e2.to;
+				tmp.w = weight;
+				Req.push(tmp);
 
 				#if defined(GRANULARITY_0) && defined(HEAVY_PAR)
 				}
@@ -271,8 +296,10 @@ int main (int argc, char** argv) {
 		
 		gettimeofday(&start6, NULL);
 		// cout << "for each (v,x) in Req do relax(v,x)" << endl;
-		for (pair<vertex_t, weight_t> p : Req) {
-			relax(p.first, p.second, delta, tent, B);
+		while (!Req.empty()) {
+			p_t p;
+			Req.pop(p);
+			relax(p.v, p.w, delta, tent, B);
 		}
 		gettimeofday(&end6, NULL);
 		tempo6 = tempo6 + ((end6.tv_sec*1000000+end6.tv_usec) - (start6.tv_sec*1000000+start6.tv_usec));
