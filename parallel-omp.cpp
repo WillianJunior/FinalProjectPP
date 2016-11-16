@@ -173,6 +173,9 @@ int main (int argc, char** argv) {
 
 	gettimeofday(&start0, NULL);
 
+	// int count;
+	// int max = 0;
+
 	while (B.size() != 0) {
 		// cout << "S = 0" << endl;
 		list<vertex_t> S;
@@ -191,8 +194,11 @@ int main (int argc, char** argv) {
 			{
 			#endif
 
+			// count  = 0;
+
 			for (vertex_t v : B[i]) {
 				#if defined(GRANULARITY_1) && defined(LIGHT_PAR)
+				// count++;
 				#pragma omp task
 				{
 				#endif
@@ -220,6 +226,7 @@ int main (int argc, char** argv) {
 			#ifdef LIGHT_PAR
 			}
 			}
+			// if (count > max) max = count;
 			#endif
 
 			gettimeofday(&end2, NULL);
@@ -249,6 +256,8 @@ int main (int argc, char** argv) {
 		boost::lockfree::queue<p_t> Req(B[i].size()*(1+max_heavy_size));
 		
 		gettimeofday(&start5, NULL);
+
+		// cout << "max: " << max << endl;
 
 		#ifdef HEAVY_PAR
 		#pragma omp parallel 

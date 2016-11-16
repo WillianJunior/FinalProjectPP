@@ -15,8 +15,8 @@ typedef int vertex_t;
 typedef float weight_t;
 typedef int index_t;
 typedef float delta_t;
-struct timeval start1, start2, start3, start4, start5, start6;
-struct timeval end1, end2, end3, end4, end5, end6;
+struct timeval start0, start1, start2, start3, start4, start5, start6;
+struct timeval end0, end1, end2, end3, end4, end5, end6;
 int tempo1, tempo2, tempo3, tempo4, tempo5, tempo6;
 
 class edge_t {
@@ -153,6 +153,8 @@ int main (int argc, char** argv) {
 	gettimeofday(&end1, NULL);
 	tempo1 = ((end1.tv_sec*1000000+end1.tv_usec) - (start1.tv_sec*1000000+start1.tv_usec));
 
+	gettimeofday(&start0, NULL);
+
 	while (B.size() != 0) {
 		// cout << "S = 0" << endl;
 		list<vertex_t> S;
@@ -218,7 +220,10 @@ int main (int argc, char** argv) {
 		// printTent(tent);
 	}
 
-	printTent(tent);
+	gettimeofday(&end0, NULL);
+	cout << ((end0.tv_sec*1000000+end0.tv_usec) - (start0.tv_sec*1000000+start0.tv_usec));
+
+	// printTent(tent);
 }
 
 void relax(const vertex_t &v, const weight_t &x, const delta_t& delta, 
