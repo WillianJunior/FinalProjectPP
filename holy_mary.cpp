@@ -195,8 +195,8 @@ int main(int argc, char** argv) {
 	for (int i=0; i<max_weight; i++)
 		B_array2[i] = 0;
 
-	cout << "n_vertices = " << n_vertices << endl;
-	cout << "max_weight = " << max_weight << endl;
+	// cout << "n_vertices = " << n_vertices << endl;
+	// cout << "max_weight = " << max_weight << endl;
 
 	// cout << "B_array1" << endl;
 	// for (int i=0; i<n_vertices; i++)
@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
 	// 	if (B_array2[i] != 0)
 	// 		cout << B_array2[i] << endl;
 
-	index_t i = 0;
+	index_t b = 0;
 	gettimeofday(&end1, NULL);
 	tempo1 = ((end1.tv_sec*1000000+end1.tv_usec) - (start1.tv_sec*1000000+start1.tv_usec));
 
@@ -231,9 +231,9 @@ int main(int argc, char** argv) {
 		list<vertex_t> S;
 
 		// cout << "while B[i] != {}" << endl;
-		while (B_array2[i] > 0) {
+		while (B_array2[b] > 0) {
 			// cout << "Req = {(w; tent(v) + c(v,w)) | v in B[i] and (v,w) in light(v)}" << endl;
-			boost::lockfree::queue<p_t> Req(B_array2[i]*(1+max_light_size));
+			boost::lockfree::queue<p_t> Req(B_array2[b]*(1+max_light_size));
 
 			// For Req.emplace_back B
 			gettimeofday(&start2, NULL);
@@ -245,7 +245,7 @@ int main(int argc, char** argv) {
 			#endif
 
 			for (vertex_t v=0; v<n_vertices; v++) {
-				if (B_array1[v] == i) {
+				if (B_array1[v] == b) {
 					#if defined(GRANULARITY_1) && defined(LIGHT_PAR)
 					#pragma omp task
 					{
@@ -284,13 +284,13 @@ int main(int argc, char** argv) {
 			// For S.emplace_back
 			gettimeofday(&start3, NULL);
 			for (vertex_t v=0; v<n_vertices; v++) {
-				if (B_array1[v] == i) {
+				if (B_array1[v] == b) {
 					S.emplace_back(v);
 					B_array1[v] = -1;
 					// v = B[i].erase(v);
 				}
 			}
-			B_array2[i] = 0;
+			B_array2[b] = 0;
 			gettimeofday(&end3, NULL);
 			tempo3 = tempo3 + ((end3.tv_sec*1000000+end3.tv_usec) - (start3.tv_sec*1000000+start3.tv_usec));
 			// cout << "for each (v,x) in Req do relax(v,x)" << endl;
@@ -327,7 +327,12 @@ int main(int argc, char** argv) {
 		}
 
 		// cout << "Req = {(w; tent(v) + c(v,w)) | v in S and (v,w) in heavy(v)}" << endl;
-		boost::lockfree::queue<p_t> Req(B_array2[i]*(1+max_heavy_size));
+		boost::lockfree::queue<p_t> Req(B_array2[b]*(1+max_heavy_size));
+		atomic<int> Rec_count;
+		Rec_count = 0;
+		// Rec_count = B_array2[b]*(1+max_heavy_size);
+		// p_t Req_a[Rec_count];
+		// int j=0;
 
 
 // For Req.emplace_back S
@@ -357,6 +362,9 @@ int main(int argc, char** argv) {
 				p_t tmp;
 				tmp.v = e2.to;
 				tmp.w = weight;
+				#ifdef RELAX_PAR_LOOP
+				Rec_count++;
+				#endif
 				Req.push(tmp);
 
 				#if defined(GRANULARITY_0) && defined(HEAVY_PAR)
@@ -380,6 +388,34 @@ int main(int argc, char** argv) {
 // For relax final
 		gettimeofday(&start6, NULL);
 		// cout << "for each (v,x) in Req do relax(v,x)" << endl;
+		
+		#ifdef RELAX_PAR_LOOP
+		p_t* Req_a = new p_t[Rec_count];
+		cout << Rec_count << endl;
+		// cout << B_array2[i]*(1+max_heavy_size) << endl;
+		int j=0;
+		while (!Req.empty()) {
+			p_t p;
+			Req.pop(p);
+			Req_a[j++] = p;
+		}
+		cout << j << endl;
+
+		#pragma omp parallel shared(B_array1, B_array2)
+		{
+		#pragma omp for
+		for (int i=0; i<Rec_count; i++) {
+			relax(Req_a[i].v, Req_a[i].w, delta, tent, B_array1, B_array2);
+		}
+		#pragma omp barrier
+		}
+		delete[] Req_a;
+
+		#endif
+
+		// omp task paralelization
+		#ifndef RELAX_PAR_LOOP
+
 		#ifdef RELAX_PAR2
 		#pragma omp parallel 
 		{
@@ -404,16 +440,18 @@ int main(int argc, char** argv) {
 		}
 		}
 		#endif
+
+		#endif
 		gettimeofday(&end6, NULL);
 		tempo6 = tempo6 + ((end6.tv_sec*1000000+end6.tv_usec) - (start6.tv_sec*1000000+start6.tv_usec));
 		
-		B_array2[i] = 0;
+		B_array2[b] = 0;
 		for (vertex_t v=0; v<n_vertices; v++) {
-			if (B_array1[v] == i) {
+			if (B_array1[v] == b) {
 				B_array1[v] = -1;
 			}
 		}
-		i++;
+		b++;
 		// printTent(tent);
 	}
 
