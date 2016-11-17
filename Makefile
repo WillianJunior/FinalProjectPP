@@ -12,39 +12,69 @@ ttest: all gtg test.g
 	# ./parallel-omp.out test.g 0.5
 
 test.g: gtg
-	@./GTgraph/random/GTgraph-random -t 1 -n 100000 -m 5000000 -o test.g
+	@./GTgraph/random/GTgraph-random -t 1 -n 1000000 -m 30000000 -o test.g
 	@rm log
 
 gtg: ./GTgraph/random/GTgraph-random
 	@make -s -C ./GTgraph
 	@make -s -C ./GTgraph rand
 
-alltest: all gtg test.g exp1 exp2
+alltest: gtg test.g exp0 exp1 exp2
 
-exp1: 
+exp0:
+	# serial
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -lm
+	sh test_once.sh 10 results0.out 0 holy_mary.out
+	sh test_once.sh 10 results0.out 2.5 holy_mary.out
+	sh test_once.sh 10 results0.out 5 holy_mary.out
+
+exp1:
+	# relax1
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D RELAX_PAR1 -fopenmp -lm
+	sh test_once.sh 10 results1.out 0 holy_mary.out
+	sh test_once.sh 10 results1.out 2.5 holy_mary.out
+	sh test_once.sh 10 results1.out 5 holy_mary.out
+
+	# relax2
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D RELAX_PAR2 -fopenmp -lm
+	sh test_once.sh 10 results1.out 0 holy_mary.out
+	sh test_once.sh 10 results1.out 2.5 holy_mary.out
+	sh test_once.sh 10 results1.out 5 holy_mary.out
+
+	# both
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D RELAX_PAR1 -D RELAX_PAR2 -fopenmp -lm
+	sh test_once.sh 10 results1.out 0 holy_mary.out
+	sh test_once.sh 10 results1.out 2.5 holy_mary.out
+	sh test_once.sh 10 results1.out 5 holy_mary.out
+
+exp2: 
 	# heavy tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 parallel-omp.cpp -o parallel-omp.out -D GRANULARITY_0 -D HEAVY_PAR -fopenmp -lm
-	sh test_once.sh 10 results1.out 0
-	sh test_once.sh 10 results1.out 5
-	sh test_once.sh 10 results1.out 10
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D HEAVY_PAR -fopenmp -lm
+	sh test_once.sh 10 results2.out 0 holy_mary.out
+	sh test_once.sh 10 results2.out 2.5 holy_mary.out
+	sh test_once.sh 10 results2.out 5 holy_mary.out
 
 	# light tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 parallel-omp.cpp -o parallel-omp.out -D GRANULARITY_0 -D LIGHT_PAR -fopenmp -lm
-	sh test_once.sh 10 results1.out 0
-	sh test_once.sh 10 results1.out 5
-	sh test_once.sh 10 results1.out 10
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D LIGHT_PAR -fopenmp -lm
+	sh test_once.sh 10 results2.out 0 holy_mary.out
+	sh test_once.sh 10 results2.out 2.5 holy_mary.out
+	sh test_once.sh 10 results2.out 5 holy_mary.out
 
 	# both tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 parallel-omp.cpp -o parallel-omp.out -D GRANULARITY_0 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
-	sh test_once.sh 10 results1.out 0
-	sh test_once.sh 10 results1.out 5
-	sh test_once.sh 10 results1.out 10
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
+	sh test_once.sh 10 results2.out 0 holy_mary.out
+	sh test_once.sh 10 results2.out 2.5 holy_mary.out
+	sh test_once.sh 10 results2.out 5 holy_mary.out
 
 exp2:
 	# G0 tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 parallel-omp.cpp -o parallel-omp.out -D GRANULARITY_0 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
-	sh test_once.sh 10 results2.out 5
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_0 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
+	sh test_once.sh 10 results3.out 0 holy_mary.out
+	sh test_once.sh 10 results3.out 2.5 holy_mary.out
+	sh test_once.sh 10 results3.out 5 holy_mary.out
 
 	# G1 tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 parallel-omp.cpp -o parallel-omp.out -D GRANULARITY_0 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
-	sh test_once.sh 10 results2.out 5
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
+	sh test_once.sh 10 results3.out 0 holy_mary.out
+	sh test_once.sh 10 results3.out 2.5 holy_mary.out
+	sh test_once.sh 10 results3.out 5 holy_mary.out

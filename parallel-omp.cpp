@@ -3,6 +3,8 @@
 #include <map>
 #include <list>
 #include <string>
+#include <mutex> 
+#include <thread>
 
 #include <cmath>
 #include <cstdlib>
@@ -11,6 +13,8 @@
 #include <omp.h>
 
 #include <boost/lockfree/queue.hpp>
+
+#define MAX_THREADS 8
 
 using namespace std;
 
@@ -21,6 +25,12 @@ typedef float delta_t;
 struct timeval start0, start1, start2, start3, start4, start5, start6;
 struct timeval end0, end1, end2, end3, end4, end5, end6;
 int tempo1, tempo2, tempo3, tempo4, tempo5, tempo6;
+
+
+mutex* v_locks;
+mutex* B_locks;
+mutex B_full_lock;
+thread ts[MAX_THREADS];
 
 class edge_t {
 public:
@@ -44,7 +54,7 @@ typedef struct {
 	weight_t w;
 } p_t;
 
-void relax(const vertex_t &v, const weight_t &x, const delta_t& delta, 
+void relax(vertex_t v, weight_t x, delta_t delta, 
 	map<vertex_t, weight_t> &tent, map<index_t, list<vertex_t>> &B);
 
 void printB(map<index_t, list<vertex_t>> B) {
@@ -98,6 +108,8 @@ int main (int argc, char** argv) {
 
 	list<edge_t> E;
 	string line;
+	float max_weight = 0;
+	int n_vertices = 0;
 	while (getline(adj_list_file, line)) {
 		// continues if the lis isn't form an edge
 		if (line.front() != 'a')
@@ -110,15 +122,24 @@ int main (int argc, char** argv) {
 		edge_t e;
 		e.from = stoi(line.substr(0,i));
 
+		if (n_vertices < e.from)
+			n_vertices = e.from;
+
 		// get to value
 		line = line.substr(i+1);
 		i = line.find_first_of(" ");
 		e.to = stoi(line.substr(0,i));
 
+		if (n_vertices < e.to)
+			n_vertices = e.to;
+
 		// get weight value
 		size_t j = i+1;
 		line = line.substr(i+1);
 		e.weight = stof(line.substr(0,line.size()));
+
+		if (max_weight < e.weight)
+			max_weight = e.weight;
 
 		E.emplace_back(e);
 	}
@@ -157,15 +178,23 @@ int main (int argc, char** argv) {
 
 	// gen tent
 	map<vertex_t, weight_t> tent;
-	for (edge_t e : E) {
-		tent[e.to] = FLT_MAX;
+	for (int i=0; i<n_vertices+1; i++) {
+		tent[i] = max_weight+1;
 	}
-	tent[s] = FLT_MAX;
+	tent[s] = max_weight+1;
+	cout << "max_weight: " << max_weight << endl;
+	cout << "n_vertices: " << n_vertices << endl;
 
 	// gen B
 	map<index_t, list<vertex_t>> B;
 
+	// initialize relax B_locks multexes
+	int max_key_c = ceil(max_weight>n_vertices ? max_weight : n_vertices);
+	v_locks = new mutex[n_vertices+1];
+	B_locks = new mutex[(int)(floor(max_weight)*floor(max_weight))];
+
 	gettimeofday(&start1, NULL);
+	// relax(B_locks, s, 0, delta, tent, B);
 	relax(s, 0, delta, tent, B);
 	index_t i = 0;
 	gettimeofday(&end1, NULL);
@@ -182,7 +211,8 @@ int main (int argc, char** argv) {
 
 		// cout << "while B[i] != {}" << endl;
 		while (B[i].size() != 0) {
-			// cout << "Req = {(w; tent(v) + c(v,w)) | v in B[i] and (v,w) in light(v)}" << endl;
+			// cout << "Req = {(w; tent(v) + c(v,w)) | 
+			// 		v in B[i] and (v,w) in light(v)}" << endl;
 			boost::lockfree::queue<p_t> Req(B[i].size()*(1+max_light_size));
 
 			gettimeofday(&start2, NULL);
@@ -230,7 +260,8 @@ int main (int argc, char** argv) {
 			#endif
 
 			gettimeofday(&end2, NULL);
-			tempo2 = tempo2 + ((end2.tv_sec*1000000+end2.tv_usec) - (start2.tv_sec*1000000+start2.tv_usec));
+			tempo2 = tempo2 + ((end2.tv_sec*1000000+end2.tv_usec) - 
+				(start2.tv_sec*1000000+start2.tv_usec));
 			// cout << "S = S ++ B[i]; B[i] = {}" << endl;
 
 			gettimeofday(&start3, NULL);
@@ -239,17 +270,36 @@ int main (int argc, char** argv) {
 				v = B[i].erase(v);
 			}
 			gettimeofday(&end3, NULL);
-			tempo3 = tempo3 + ((end3.tv_sec*1000000+end3.tv_usec) - (start3.tv_sec*1000000+start3.tv_usec));
+			tempo3 = tempo3 + ((end3.tv_sec*1000000+end3.tv_usec) - 
+				(start3.tv_sec*1000000+start3.tv_usec));
 			// cout << "for each (v,x) in Req do relax(v,x)" << endl;
 			
 			gettimeofday(&start4, NULL);
+			int i=0;
 			while (!Req.empty()) {
 				p_t p;
 				Req.pop(p);
-				relax(p.v, p.w, delta, tent, B);
+				if (ts[(i+1)%MAX_THREADS].joinable()) {
+					// cout << "joining" << endl;
+					ts[(i+1)%MAX_THREADS].join();
+				}
+				// cout << "new thread" << endl;
+				ts[i%MAX_THREADS] = thread(relax, p.v, p.w, delta, ref(tent), ref(B));
+				i++;
+				// relax(p.v, p.w, delta, tent, B);
 			}
+
+			for (int i=0; i<MAX_THREADS; i++) {
+				if (ts[(i+1)%MAX_THREADS].joinable()) {
+					// cout << "final join" << endl;
+					ts[(i+1)%MAX_THREADS].join();
+					// cout << "final join done" << endl;
+				}
+			}
+
 			gettimeofday(&end4, NULL);
-			tempo4 = tempo4 + ((end4.tv_sec*1000000+end4.tv_usec) - (start4.tv_sec*1000000+start4.tv_usec));
+			tempo4 = tempo4 + ((end4.tv_sec*1000000+end4.tv_usec) - 
+				(start4.tv_sec*1000000+start4.tv_usec));
 		}
 
 		// cout << "Req = {(w; tent(v) + c(v,w)) | v in S and (v,w) in heavy(v)}" << endl;
@@ -303,17 +353,36 @@ int main (int argc, char** argv) {
 
 
 		gettimeofday(&end5, NULL);
-		tempo5 = tempo5 + ((end5.tv_sec*1000000+end5.tv_usec) - (start5.tv_sec*1000000+start5.tv_usec));
+		tempo5 = tempo5 + ((end5.tv_sec*1000000+end5.tv_usec) - 
+			(start5.tv_sec*1000000+start5.tv_usec));
 		
 		gettimeofday(&start6, NULL);
 		// cout << "for each (v,x) in Req do relax(v,x)" << endl;
+		int i=0;
 		while (!Req.empty()) {
 			p_t p;
 			Req.pop(p);
-			relax(p.v, p.w, delta, tent, B);
+			if (ts[(i+1)%MAX_THREADS].joinable()) {
+				// cout << "joining" << endl;
+				ts[(i+1)%MAX_THREADS].join();
+			}
+			// cout << "new thread" << endl;
+			ts[i%MAX_THREADS] = thread(relax, p.v, p.w, delta, ref(tent), ref(B));
+			i++;
+			// relax(p.v, p.w, delta, tent, B);
 		}
+
+		for (int i=0; i<MAX_THREADS; i++) {
+			if (ts[(i+1)%MAX_THREADS].joinable()) {
+				// cout << "final join" << endl;
+				ts[(i+1)%MAX_THREADS].join();
+				// cout << "final join done" << endl;
+			}
+		}
+
 		gettimeofday(&end6, NULL);
-		tempo6 = tempo6 + ((end6.tv_sec*1000000+end6.tv_usec) - (start6.tv_sec*1000000+start6.tv_usec));
+		tempo6 = tempo6 + ((end6.tv_sec*1000000+end6.tv_usec) - 
+			(start6.tv_sec*1000000+start6.tv_usec));
 		
 		B.erase(i);
 		i++;
@@ -321,18 +390,47 @@ int main (int argc, char** argv) {
 	}
 
 	gettimeofday(&end0, NULL);
-	cout << ((end0.tv_sec*1000000+end0.tv_usec) - (start0.tv_sec*1000000+start0.tv_usec));
+	cout << ((end0.tv_sec*1000000+end0.tv_usec) - 
+		(start0.tv_sec*1000000+start0.tv_usec));
 
-	// printTent(tent);
+	printTent(tent);
+
 }
 
-void relax(const vertex_t &v, const weight_t &x, const delta_t& delta, 
+void relax(vertex_t v, weight_t x, delta_t delta, 
 	map<vertex_t, weight_t> &tent, map<index_t, list<vertex_t>> &B) {
 
-	if (x < tent[v]) {
-		if (B.find(floor(tent[v]/delta)) != B.end())
-			B[floor(tent[v]/delta)].remove(v);
+	// v_locks[v].lock();
+	// cout << "locking " << v << endl;
+	int l = floor(x);
+	// cout << "locking " << l << endl;
+	// B_locks[l].lock();
+	B_full_lock.lock();
+	if (x < tent.at(v)) {
+		if (B.find(floor(tent.at(v)/delta)) != B.end()) {
+			B.at(floor(tent.at(v)/delta)).remove(v);
+		}
 		B[floor(x/delta)].emplace_back(v);
 		tent[v] = x;
 	}
+	B_full_lock.unlock();
+	// cout << "unlocking " << l << endl;
+	// B_locks[l].unlock();
+	// cout << "unlocking " << v << endl;
+	// v_locks[v].unlock();
+}
+
+// void relax(vertex_t v, weight_t x, delta_t delta, 
+// 	map<vertex_t, weight_t> &tent, map<index_t, list<vertex_t>> &B) {
+
+// 	if (x < tent.at(v)) {
+// 		if (B.find(floor(tent.at(v)/delta)) != B.end())
+// 			B.at(floor(tent.at(v)/delta)).remove(v);
+// 		B[floor(x/delta)].emplace_back(v);
+// 		tent[v] = x;
+// 	}
+// }
+
+weight_t att(map<vertex_t, weight_t> &tent, vertex_t v) {
+	return tent[v];
 }
