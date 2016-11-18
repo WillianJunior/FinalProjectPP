@@ -152,11 +152,14 @@ int main(int argc, char** argv) {
 	// gen heavy and light
 	map<vertex_t, list<edge_t>> heavy;
 	map<vertex_t, list<edge_t>> light;
+	int n_heavy_edges=0;
 	for (edge_t e : E) {
-		if (e.weight > delta)
+		if (e.weight > delta) {
 			heavy[e.from].emplace_back(e);
-		else
+			n_heavy_edges++;
+		} else {
 			light[e.from].emplace_back(e);
+		}
 	}
 	int max_light_size = 0;
 	for (pair<vertex_t, list<edge_t>> p : light)
@@ -327,13 +330,9 @@ int main(int argc, char** argv) {
 		}
 
 		// cout << "Req = {(w; tent(v) + c(v,w)) | v in S and (v,w) in heavy(v)}" << endl;
-		boost::lockfree::queue<p_t> Req(B_array2[b]*(1+max_heavy_size));
+		p_t* Req = new p_t[n_heavy_edges];
 		atomic<int> Rec_count;
 		Rec_count = 0;
-		// Rec_count = B_array2[b]*(1+max_heavy_size);
-		// p_t Req_a[Rec_count];
-		// int j=0;
-
 
 // For Req.emplace_back S
 		gettimeofday(&start5, NULL);
@@ -362,10 +361,7 @@ int main(int argc, char** argv) {
 				p_t tmp;
 				tmp.v = e2.to;
 				tmp.w = weight;
-				#ifdef RELAX_PAR_LOOP
-				Rec_count++;
-				#endif
-				Req.push(tmp);
+				Req[Rec_count++] = tmp;
 
 				#if defined(GRANULARITY_0) && defined(HEAVY_PAR)
 				}
@@ -390,26 +386,14 @@ int main(int argc, char** argv) {
 		// cout << "for each (v,x) in Req do relax(v,x)" << endl;
 		
 		#ifdef RELAX_PAR_LOOP
-		p_t* Req_a = new p_t[Rec_count];
-		cout << Rec_count << endl;
-		// cout << B_array2[i]*(1+max_heavy_size) << endl;
-		int j=0;
-		while (!Req.empty()) {
-			p_t p;
-			Req.pop(p);
-			Req_a[j++] = p;
-		}
-		cout << j << endl;
-
 		#pragma omp parallel shared(B_array1, B_array2)
 		{
 		#pragma omp for
 		for (int i=0; i<Rec_count; i++) {
-			relax(Req_a[i].v, Req_a[i].w, delta, tent, B_array1, B_array2);
+			relax(Req[i].v, Req[i].w, delta, tent, B_array1, B_array2);
 		}
 		#pragma omp barrier
 		}
-		delete[] Req_a;
 
 		#endif
 
@@ -423,14 +407,12 @@ int main(int argc, char** argv) {
 		{
 		#endif
 
-		while (!Req.empty()) {
+		for (int i=0; i<Rec_count; i++) {
 			#ifdef RELAX_PAR2
 			#pragma omp task shared(tent, B_array1, B_array2)
 			{
 			#endif
-			p_t p;
-			Req.pop(p);
-			relax(p.v, p.w, delta, tent, B_array1, B_array2);
+			relax(Req[i].v, Req[i].w, delta, tent, B_array1, B_array2);
 			#ifdef RELAX_PAR2
 			}
 			#endif
@@ -458,7 +440,7 @@ int main(int argc, char** argv) {
 	gettimeofday(&end0, NULL);
 	cout << ((end0.tv_sec*1000000+end0.tv_usec) - (start0.tv_sec*1000000+start0.tv_usec));
 
-	printTent(tent);
+	// printTent(tent);
 }
 
 void relax(const vertex_t &v, const weight_t &x, const delta_t& delta, 

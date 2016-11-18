@@ -41,15 +41,15 @@ exp1:
 
 exp2: 
 	# heavy tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D HEAVY_PAR -fopenmp -lm
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_0 -D HEAVY_PAR -fopenmp -lm
 	sh test_once.sh 6 results2.out 1 holy_mary.out
 
 	# light tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D LIGHT_PAR -fopenmp -lm
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_0 -D LIGHT_PAR -fopenmp -lm
 	sh test_once.sh 6 results2.out 1 holy_mary.out
 
 	# both tests
-	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_1 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
+	@g++ -std=c++11 -ggdb -gdwarf-2 holy_mary.cpp -o holy_mary.out -D GRANULARITY_0 -D HEAVY_PAR -D LIGHT_PAR -fopenmp -lm
 	sh test_once.sh 6 results2.out 1 holy_mary.out
 
 exp3:
